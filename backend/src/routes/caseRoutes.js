@@ -13,6 +13,14 @@ router
   .post(authorize('admin', 'analyst'), validate(createCaseSchema), ctrl.create);
 
 router
+  .route('/sync-kanoon/status')
+  .get(authorize('admin', 'analyst'), ctrl.getKanoonStatus);
+
+router
+  .route('/sync-kanoon')
+  .post(authorize('admin', 'analyst'), ctrl.syncKanoon);
+
+router
   .route('/:id')
   .get(validate(idParamSchema, 'params'), ctrl.get)
   .put(authorize('admin', 'analyst'), validate(idParamSchema, 'params'), validate(updateCaseSchema), ctrl.update)

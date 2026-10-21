@@ -1,0 +1,308 @@
+================================================================================
+                                NYAYA-AI
+           Judicial Case Delay-Risk Decision Support System
+                      COMPLETE PROJECT EXPLANATION
+================================================================================
+
+This document provides a complete, simple, and detailed explanation of how
+NyayaAI works, what technologies and data sources are used, and how everything
+connects together. You can use this guide to explain the project in viva,
+presentations, interviews, or project reviews.
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. What is NyayaAI? (Project Purpose)
+2. High-Level Architecture (The 4 Core Blocks)
+3. The Two Data Sources: Indian Kanoon API vs CSV Dataset
+4. The Machine Learning Engine (How Predictions Work)
+5. Explainable AI (SHAP & Gemini Integration)
+6. Automatic Data Ingestion (Kanoon Auto-Sync on Startup)
+7. End-to-End Workflow (How Data Moves Through the System)
+8. Technology Stack Breakdown
+9. How to Run All Services (Simple 3-Terminal Guide)
+10. Quick Q&A Cheat Sheet (For Viva / Demonstrations)
+
+
+================================================================================
+1. WHAT IS NYAYA-AI? (PROJECT PURPOSE)
+================================================================================
+In the Indian judicial system, more than 40 to 50 million cases are pending
+across District Courts, High Courts, and the Supreme Court. The primary causes
+of delays include frequent adjournments, procedural bottlenecks, court docket
+overload, and lack of early warning systems.
+
+NyayaAI is an AI-powered Judicial Intelligence and Delay-Risk Decision Support
+System designed to:
+- Ingest real-world court cases directly from Indian Kanoon.
+- Predict the delay risk level (LOW, MEDIUM, HIGH) for any case.
+- Estimate the expected delay in days using machine learning.
+- Provide Explainable AI (XAI) using SHAP values so judges and lawyers can
+  see exactly WHY a case is likely to be delayed.
+- Automatically recommend procedural interventions (e.g., limit adjournments,
+  prioritize evidence recording, refer to mediation/Lok Adalat).
+- Find historically similar case precedents using natural language retrieval.
+
+
+================================================================================
+2. HIGH-LEVEL ARCHITECTURE (THE 4 CORE BLOCKS)
+================================================================================
+
+ [ React Frontend ]          Runs in browser on http://localhost:5173
+       |                     Interactive UI: Dashboard, Cases, AI Predictor,
+       | REST API (JSON)     Analytics charts, and Recommendations.
+       v
+ [ Node.js Backend ]         Runs on http://localhost:5000/api
+       |                     Express REST API, MongoDB Database, JWT Auth,
+       |                     Business Logic & Indian Kanoon API Sync Service.
+       +-----------------------+
+       |                       |
+       v (HTTP /predict)       v (External API)
+ [ Python ML Service ]    [ Indian Kanoon API ]
+ Runs on localhost:8000   api.indiankanoon.org (Real-World Data)
+ FastAPI + XGBoost        Fetches live court judgments & proceedings.
+ + SHAP + Scikit-Learn
+
+
+================================================================================
+3. THE TWO DATA SOURCES: INDIAN KANOON API VS CSV DATASET
+================================================================================
+A frequent question is: "Are you using the Indian Kanoon API or a CSV file?"
+Answer: WE USE BOTH, AND EACH SERVES A SPECIFIC, COMPLEMENTARY PURPOSE!
+
+A) INDIAN KANOON API (Real-World Live Data):
+   - What it is: The official search API of IndianKanoon.org (Indian legal repository).
+   - What it does: Supplies 100% real, authentic Indian court records and judgments.
+   - Where it goes: Stored in our live MongoDB database under the 'cases' collection.
+   - Where you see it: Everything displayed on the NyayaAI Dashboard, Cases page,
+     and Case Details is live real-world data fetched from Indian Kanoon (e.g.
+     parties, courts, legal sections, filing dates, hearing counts).
+
+B) DATASET CSV FILE (sample_cases.csv - 3,000 cases):
+   - What it is: A structured legal dataset of 3,000 cases with historical labels.
+   - What it does:
+     1. Machine Learning Training: Used to train the XGBoost delay classification
+        model and regression model. Supervised AI models require thousands of
+        labeled records with known outcomes to learn statistical delay patterns.
+     2. Precedent Knowledge Base: Acts as the historical corpus for the TF-IDF
+        similarity retrieval engine. When a live Kanoon case is opened, the system
+        searches this corpus to find past historical rulings and case precedents.
+
+SUMMARY:
+- What the user sees on the UI = Indian Kanoon API (Real Live Cases).
+- What powers the AI model & precedent search = The Training Dataset CSV.
+
+
+================================================================================
+4. THE MACHINE LEARNING ENGINE (HOW PREDICTIONS WORK)
+================================================================================
+The ML service is built in Python with FastAPI, Scikit-Learn, and XGBoost:
+
+A) Feature Engineering:
+   For every case, the system extracts and computes key numerical and
+   categorical features:
+   - case_age_days: Total days elapsed since the case was filed.
+   - number_of_hearings: Number of hearings held so far.
+   - number_of_adjournments: Number of adjournments granted.
+   - adjournment_ratio: adjournments divided by hearings (a strong signal of delay).
+   - case_type: Civil, Criminal, Family, Commercial, Cheque Bounce, etc.
+   - court: High Court, District Court, Sessions Court, Magistrate Court, etc.
+   - state: Delhi, Maharashtra, Karnataka, Uttar Pradesh, etc.
+   - stage: Evidence, Arguments, Pleadings, Admission, Notice Issued, etc.
+
+B) The Models:
+   1. XGBoost Classifier (Multi-class):
+      Predicts the probability distribution across 3 risk tiers:
+      - LOW RISK    (< 180 days estimated delay)
+      - MEDIUM RISK (180 to 540 days estimated delay)
+      - HIGH RISK   (> 540 days estimated delay)
+   2. XGBoost Regressor:
+      Predicts continuous estimated delay duration (in days) beyond expected timeline.
+
+
+================================================================================
+5. EXPLAINABLE AI (SHAP & GEMINI INTEGRATION)
+================================================================================
+In legal and judicial applications, "black box" AI is unacceptable—judges and
+lawyers must know WHY the model made a specific prediction.
+
+A) SHAP (SHapley Additive exPlanations):
+   - Computes game-theoretic Shapley values for each individual feature.
+   - Quantifies exactly how much each feature contributed toward or against delay.
+   - Example output:
+     * "High number of adjournments (+32% risk increase)"
+     * "Case age exceeding 700 days (+24% risk increase)"
+     * "Case stage: Evidence (+14% risk increase)"
+     * "Court efficiency in Delhi (-8% risk reduction)"
+
+B) Generative Narrative (Gemini AI + Template Fallback):
+   - Translates raw SHAP mathematical numbers into clear, professional legal English.
+   - If a Gemini API key is configured, Google Gemini-2.5-Flash generates an
+     executive summary.
+   - If offline or rate-limited, the built-in deterministic legal template engine
+     generates an identical formatted narrative instantly.
+
+
+================================================================================
+6. AUTOMATIC DATA INGESTION (KANOON AUTO-SYNC ON STARTUP)
+================================================================================
+How do real cases get into the system automatically?
+
+1. Automatic Startup Trigger:
+   - When `server.js` boots and starts listening on port 5000, it schedules a
+     background task after 3 seconds.
+   - It is strictly non-blocking: your web app is immediately fast and available.
+
+2. Querying Indian Kanoon API:
+   - Performs an authenticated HTTP POST request to `https://api.indiankanoon.org/search/`
+     using your API token (`KANOON_API_TOKEN`).
+   - Query used: `civil suit doctypes:judgments` (customizable in .env).
+   - Fetches paginated records (up to 60 real cases).
+
+3. Intelligent Mapping:
+   - Cleans HTML tags from titles and judgment headlines.
+   - Automatically detects the Court (High Court, District, Sessions, etc.).
+   - Extracts petitioner and respondent names.
+   - Extracts legal statutes and sections (e.g., CPC S.9, NI Act S.138, IPC).
+   - Assigns realistic Indian judicial proceedings stages (Evidence, Arguments,
+     Pleadings, Judgment Reserved) and statuses (Pending, Adjourned, Stayed, Disposed).
+
+4. Automatic ML Assessment:
+   - Newly inserted cases are immediately sent to the Python ML service.
+   - Risk levels, delay days, SHAP feature impacts, and recommendations are
+     computed and saved to MongoDB so the dashboard is instantly fully populated.
+
+5. On-Demand Sync:
+   - You can also trigger sync anytime via CLI: `npm run sync:kanoon`
+   - Or via HTTP endpoint: `POST /api/cases/sync-kanoon`
+
+
+================================================================================
+7. END-TO-END WORKFLOW (HOW DATA MOVES THROUGH THE SYSTEM)
+================================================================================
+
+1. STARTUP:
+   - Node backend starts -> MongoDB connects -> Auto-sync pulls real cases
+     from Indian Kanoon -> Cases stored in MongoDB.
+
+2. USER VISITS DASHBOARD (http://localhost:5173):
+   - Frontend calls `GET /api/analytics/summary`.
+   - Aggregation pipeline calculates live KPIs:
+     * Total cases (e.g. 89 cases)
+     * Active pending cases vs disposed cases
+     * Risk distribution donut chart (High, Medium, Low)
+     * Average case age in days
+     * Hearing and adjournment averages
+
+3. USER OPENS CASES PAGE:
+   - Frontend calls `GET /api/cases?limit=50&page=1`.
+   - Displays 50 real court cases with filters for Case Type, Court, Risk, and Status.
+   - Search bar supports live debounced search across case numbers and party names.
+
+4. USER CLICKS ON A CASE -> "AI PREDICTION":
+   - Backend calls Python ML service `POST /predict`.
+   - Python extracts features -> runs XGBoost -> runs SHAP -> returns top features.
+   - Gemini/Template engine produces legal narrative.
+   - Recommender engine generates 3 to 5 targeted procedural action items.
+   - TF-IDF similarity engine finds top-5 past precedent cases with cosine similarity.
+   - Results are rendered in interactive visual cards and charts.
+
+
+================================================================================
+8. TECHNOLOGY STACK BREAKDOWN
+================================================================================
+
+FRONTEND (frontend/):
+- React 18 + Vite (Ultra-fast build & development)
+- Tailwind CSS (Modern responsive judicial dark/light styling)
+- Recharts (Interactive SVG charts for risk donuts, bar charts, trend lines)
+- Lucide React (Clean icon set)
+- React Router DOM v6 (Client-side routing)
+
+BACKEND (backend/):
+- Node.js & Express (High performance asynchronous REST API)
+- MongoDB & Mongoose (Document database for flexible legal case schemas)
+- JWT (JSON Web Tokens) & Bcrypt (Secure authentication & role management)
+- Axios (HTTP client for Kanoon API and Python ML service communication)
+- Zod (Strict schema validation for environment variables & API payloads)
+- Winston (Structured logging with timestamps)
+
+MACHINE LEARNING SERVICE (ml-service/):
+- Python 3.10
+- FastAPI + Uvicorn (Asynchronous high-throughput ML serving)
+- XGBoost (Gradient-boosted decision trees for classification & regression)
+- Scikit-Learn (Pipelines, encoders, standardizers, TF-IDF vectorizers)
+- SHAP (Model interpretability & feature attribution)
+- Joblib (High speed serialization for trained models)
+
+EXTERNAL APIS:
+- Indian Kanoon API: Live legal search and judgment extraction
+- Google Gemini API: Natural language legal narrative summaries
+
+
+================================================================================
+9. HOW TO RUN ALL SERVICES (SIMPLE 3-TERMINAL GUIDE)
+================================================================================
+
+PREREQUISITES:
+- MongoDB running on mongodb://127.0.0.1:27017
+- Node.js installed
+- Python 3.10 installed
+
+TERMINAL 1: Python ML Service
+-----------------------------
+cd "c:\Users\Omkar Shetake\Desktop\Nyaya-AI\ml-service"
+run.bat
+(Runs FastAPI on http://localhost:8000)
+
+TERMINAL 2: Node.js Backend
+---------------------------
+cd "c:\Users\Omkar Shetake\Desktop\Nyaya-AI\backend"
+npm run dev
+(Runs Express API on http://localhost:5000, triggers background Kanoon sync)
+
+TERMINAL 3: React Frontend
+--------------------------
+cd "c:\Users\Omkar Shetake\Desktop\Nyaya-AI\frontend"
+npm run dev
+(Opens Web App on http://localhost:5173)
+
+
+================================================================================
+10. QUICK Q&A CHEAT SHEET (FOR VIVA / PRESENTATIONS)
+================================================================================
+
+Q1: What makes NyayaAI different from a regular legal portal?
+A: Regular portals are static search engines. NyayaAI is a predictive decision
+   support system. It doesn't just store cases; it predicts future delay risk,
+   diagnoses procedural bottlenecks using Explainable AI (SHAP), and recommends
+   specific administrative interventions to prevent pendency.
+
+Q2: Where do the cases come from?
+A: Live real-world cases are fetched directly from the Indian Kanoon API using
+   our active API token. The system automatically pulls real court titles,
+   legal sections, courts, and case numbers.
+
+Q3: Why is SHAP important here?
+A: In judicial workflows, an AI recommendation cannot be a "black box". A judge
+   or clerk must know which specific factors caused a "High Risk" classification
+   (e.g., 8 adjournments in 10 hearings vs complex multi-party civil property suit).
+   SHAP gives mathematical proof of each factor's impact.
+
+Q4: What is the purpose of the CSV dataset if you have the Kanoon API?
+A: The CSV dataset (3,000 cases) is the training ground that trained the
+   XGBoost ML model and serves as the reference database for finding similar
+   legal precedents. The Kanoon API brings in live real-world cases to be
+   evaluated by that trained model.
+
+Q5: Does the system work if Indian Kanoon or Gemini is temporarily offline?
+A: Yes! The system is built with complete resilience:
+   - If Kanoon is offline: Existing MongoDB cases continue to operate smoothly.
+   - If Gemini is offline/rate-limited: The built-in deterministic legal template
+     engine generates identical structured narrative explanations automatically.
+   - If Kanoon auto-sync fails on startup: It logs a warning without crashing
+     the server.
+
+================================================================================
+                         End of Explanation File
+================================================================================

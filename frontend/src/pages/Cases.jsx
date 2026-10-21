@@ -17,14 +17,16 @@ export default function Cases() {
   const { canEdit } = useAuth();
   const [filters, setFilters] = useState(EMPTY_CASE_FILTERS);
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
   const [toDelete, setToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const search = useDebounce(filters.search);
-  const params = { ...filters, search, page, limit: 10 };
+  const params = { ...filters, search, page, limit };
 
   const { data, loading, error, refetch } = useAsync(() => caseService.list(params), [JSON.stringify(params)]);
 
   const updateFilters = (f) => { setFilters(f); setPage(1); };
+  const updateLimit = (l) => { setLimit(l); setPage(1); };
 
   const confirmDelete = async () => {
     setDeleting(true);
@@ -60,7 +62,14 @@ export default function Cases() {
         >
           <div className={loading ? 'opacity-60' : ''}>
             <CaseTable cases={data?.cases || []} onDelete={setToDelete} />
-            <Pagination page={pagination?.page} totalPages={pagination?.totalPages} total={pagination?.total} onChange={setPage} />
+            <Pagination
+              page={pagination?.page}
+              totalPages={pagination?.totalPages}
+              total={pagination?.total}
+              limit={limit}
+              onLimitChange={updateLimit}
+              onChange={setPage}
+            />
           </div>
         </AsyncBoundary>
       </div>

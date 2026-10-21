@@ -1,5 +1,6 @@
 const caseService = require('../services/caseService');
 const similarityService = require('../services/similarityService');
+const kanoonSyncService = require('../services/kanoonSyncService');
 const { asyncHandler, sendSuccess } = require('../utils/http');
 
 exports.create = asyncHandler(async (req, res) => {
@@ -39,3 +40,22 @@ exports.getSimilar = asyncHandler(async (req, res) => {
   const similar = await caseService.getStoredSimilar(req.validated.params.id);
   sendSuccess(res, { data: { caseId: req.validated.params.id, similarCases: similar }, message: 'Stored similar cases' });
 });
+
+/** POST /api/cases/sync-kanoon - trigger on-demand Indian Kanoon sync. */
+exports.syncKanoon = asyncHandler(async (req, res) => {
+  const { query, limit, predict } = req.body || {};
+  const result = await kanoonSyncService.syncFromKanoon({
+    query,
+    limit: limit ? Number(limit) : undefined,
+    runPredict: Boolean(predict),
+    adminUser: req.user,
+  });
+  sendSuccess(res, { data: result, message: 'Indian Kanoon sync finished' });
+});
+
+/** GET /api/cases/sync-kanoon/status - get Indian Kanoon sync status. */
+exports.getKanoonStatus = asyncHandler(async (req, res) => {
+  const status = kanoonSyncService.getSyncStatus();
+  sendSuccess(res, { data: status, message: 'Indian Kanoon sync status' });
+});
+
