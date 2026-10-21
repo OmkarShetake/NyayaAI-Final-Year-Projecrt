@@ -26,7 +26,9 @@ const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
 const opt = (name, def) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : def; };
 
-const CSV_PATH = process.env.SAMPLE_CSV_PATH || path.resolve(__dirname, '../../../ml-service/data/sample/sample_cases.csv');
+const defaultSamplePath = path.resolve(__dirname, '../../../ml-service/data/sample/sample_cases.csv');
+const realPath = path.resolve(__dirname, '../../../ml-service/data/raw/real_cases.csv');
+const CSV_PATH = process.env.SAMPLE_CSV_PATH || (fs.existsSync(realPath) ? realPath : defaultSamplePath);
 
 async function main() {
   await connectDB();
@@ -64,6 +66,7 @@ async function main() {
   const created = [];
   for (const r of subset) {
     if (await Case.exists({ caseNumber: r.caseNumber })) continue;
+    const isSynthetic = String(r.caseNumber).startsWith('SYN/');
     const doc = await Case.create({
       caseNumber: r.caseNumber,
       title: r.title,
@@ -83,17 +86,17 @@ async function main() {
       lastHearingDate: date(r.lastHearingDate),
       nextHearingDate: date(r.nextHearingDate),
       legalSections: (r.legalSections || '').split(';').map((s) => s.trim()).filter(Boolean),
-      description: `${r.description || ''} [SYNTHETIC SAMPLE RECORD]`.trim(),
-      isSample: true,
+      description: isSynthetic ? `${r.description || ''} [SYNTHETIC SAMPLE RECORD]`.trim() : (r.description || '').trim(),
+      isSample: isSynthetic,
       createdBy: admin._id,
     });
     created.push(doc);
     inserted += 1;
   }
-  logger.info(`Inserted ${inserted} synthetic sample cases (${subset.length - inserted} already existed)`);
+  logger.info(`Inserted ${inserted} ${isSynthetic ? 'synthetic sample' : 'real-world'} cases (${subset.length - inserted} already existed)`);
 
   if (flag('predict')) {
-    const targets = created.length ? created : await Case.find({ isSample: true, riskLevel: null }).limit(count);
+    const targets = created.length ? created : await Case.find({ riskLevel: null }).limit(count);
     let ok = 0;
     for (const c of targets) {
       try {

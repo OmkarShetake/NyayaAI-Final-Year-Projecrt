@@ -17,6 +17,8 @@ const schema = z.object({
   GEMINI_API_KEY: z.string().optional().default(''),
   GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
   GEMINI_API_URL: z.string().default('https://generativelanguage.googleapis.com/v1beta'),
+  KANOON_API_TOKEN: z.string().optional().default(''),
+  KANOON_API_BASE_URL: z.string().default('https://api.indiankanoon.org'),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(500),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),

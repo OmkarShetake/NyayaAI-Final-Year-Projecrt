@@ -10,6 +10,7 @@ const logger = require('./config/logger');
 const { dbState } = require('./config/db');
 const mlService = require('./services/mlService');
 const geminiService = require('./services/geminiService');
+const kanoonSyncService = require('./services/kanoonSyncService');
 const { sendSuccess, asyncHandler } = require('./utils/http');
 
 const authRoutes = require('./routes/authRoutes');
@@ -59,6 +60,7 @@ app.get('/api/health', asyncHandler(async (_req, res) => {
       database: db,
       mlService: ml,
       gemini: geminiService.isEnabled() ? 'configured' : 'not configured (template fallback)',
+      indianKanoon: kanoonSyncService.isConfigured() ? 'configured' : 'not configured',
       uptimeSeconds: Math.round(process.uptime()),
     },
     message: healthy ? 'All systems operational' : 'Some services are degraded',

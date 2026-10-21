@@ -16,6 +16,28 @@ import logging
 import numpy as np
 import shap
 
+# XGBoost 3.x compatibility patch for SHAP 0.44-0.49:
+# In multi-class models, XGBoost serializes base_score as a string vector (e.g. "[-0.14,-0.08,0.22]"),
+# which causes shap.TreeExplainer's internal loader to raise ValueError: could not convert string to float.
+try:
+    import shap.explainers._tree as _st
+    _orig_decode = _st.decode_ubjson_buffer
+
+    def _safe_decode(fd):
+        obj = _orig_decode(fd)
+        try:
+            lmp = obj.get("learner", {}).get("learner_model_param", {})
+            if "base_score" in lmp and isinstance(lmp["base_score"], str) and lmp["base_score"].startswith("["):
+                val = lmp["base_score"].strip("[]").split(",")[0]
+                lmp["base_score"] = val
+        except Exception:
+            pass
+        return obj
+
+    _st.decode_ubjson_buffer = _safe_decode
+except Exception:
+    pass
+
 from app.config import settings
 from app.preprocessing.preprocess import ALL_FEATURES, FEATURE_LABELS
 

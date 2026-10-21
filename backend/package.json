@@ -9,6 +9,9 @@
     "dev": "nodemon src/server.js",
     "seed": "node src/scripts/seed.js",
     "seed:predict": "node src/scripts/seed.js --predict",
+    "sync:ecourts": "node src/scripts/syncEcourts.js",
+    "sync:kanoon": "node src/scripts/syncKanoon.js",
+    "sync:kanoon:predict": "node src/scripts/syncKanoon.js --predict",
     "test:flow": "node src/scripts/e2eFlow.js"
   },
   "engines": { "node": ">=18" },

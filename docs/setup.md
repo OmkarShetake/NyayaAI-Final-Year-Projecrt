@@ -61,6 +61,24 @@ Set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) in `backend/.env`. Gemini i
 paragraph about a prediction. Without a key — or if the call fails — a deterministic template is used. The key is
 only read by the backend and never sent to the browser.
 
+## 8. Real-World Data: Indian Kanoon API (Option C)
+To sync live real-world court cases directly into your database:
+1. Register for a free account at [https://api.indiankanoon.org/](https://api.indiankanoon.org/).
+2. Copy your API token from your account profile.
+3. Paste it in `.env` (and `backend/.env`):
+   ```env
+   KANOON_API_TOKEN=your_token_here
+   ```
+4. Fetch real cases and run predictions:
+   ```bash
+   cd backend
+   npm run sync:kanoon
+   ```
+   Custom search options:
+   ```bash
+   npm run sync:kanoon -- --query "cheque bounce high court" --limit 50 --predict
+   ```
+
 ## Troubleshooting
 | Symptom | Fix |
 |---|---|
