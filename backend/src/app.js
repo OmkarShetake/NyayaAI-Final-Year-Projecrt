@@ -28,8 +28,16 @@ app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({
   origin(origin, cb) {
-    // Allow same-origin / server-to-server (no Origin header) and configured origins.
-    if (!origin || env.corsOrigins.includes(origin)) return cb(null, true);
+    if (!origin) return cb(null, true);
+    if (env.corsOrigins.includes('*') || env.corsOrigins.includes(origin)) {
+      return cb(null, true);
+    }
+    try {
+      const { hostname } = new URL(origin);
+      if (hostname.endsWith('.vercel.app') || hostname === 'localhost' || hostname === '127.0.0.1') {
+        return cb(null, true);
+      }
+    } catch (_) {}
     return cb(null, false);
   },
   credentials: true,
