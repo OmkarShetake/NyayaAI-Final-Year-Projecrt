@@ -17,7 +17,7 @@ def _path(env_key: str, default: str) -> Path:
 class Settings:
     SERVICE_NAME = "nyaya-ml-service"
     HOST = os.getenv("ML_SERVICE_HOST", "0.0.0.0")
-    PORT = int(os.getenv("ML_SERVICE_PORT", "8000"))
+    PORT = int(os.getenv("PORT", os.getenv("ML_SERVICE_PORT", "8000")))
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
     MODEL_PATH = _path("MODEL_PATH", "./models/delay_model.joblib")

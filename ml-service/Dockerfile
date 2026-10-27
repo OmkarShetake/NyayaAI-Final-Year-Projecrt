@@ -7,4 +7,4 @@ COPY . .
 # Retrain inside the image so artifacts always match the installed library versions.
 RUN python -m training.train
 EXPOSE 8000
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${ML_SERVICE_PORT:-8000}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-${ML_SERVICE_PORT:-8000}}"]
