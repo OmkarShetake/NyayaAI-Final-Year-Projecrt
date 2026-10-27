@@ -31,7 +31,7 @@ exports.remove = asyncHandler(async (req, res) => {
 /** POST /api/cases/:id/similar - computes (and stores) top-K similar cases. */
 exports.findSimilar = asyncHandler(async (req, res) => {
   const doc = await caseService.getCase(req.validated.params.id);
-  const similar = await similarityService.findSimilar(doc, req.validated.body);
+  const similar = await similarityService.findSimilar(doc, req.validated.body, req.user);
   sendSuccess(res, { data: { caseId: doc._id, similarCases: similar }, message: `Found ${similar.length} similar cases` });
 });
 
@@ -58,4 +58,3 @@ exports.getKanoonStatus = asyncHandler(async (req, res) => {
   const status = kanoonSyncService.getSyncStatus();
   sendSuccess(res, { data: status, message: 'Indian Kanoon sync status' });
 });
-

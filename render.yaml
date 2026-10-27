@@ -1,0 +1,59 @@
+services:
+  # -------------------------------------------------------------
+  # 1. NyayaAI ML Service (FastAPI + XGBoost + TF-IDF)
+  # -------------------------------------------------------------
+  - type: web
+    name: nyaya-ml-service
+    env: docker
+    dockerfilePath: ml-service/Dockerfile
+    dockerContext: ml-service
+    plan: free
+    region: oregon
+    envVars:
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: AUTO_TRAIN_IF_MISSING
+        value: "true"
+
+  # -------------------------------------------------------------
+  # 2. NyayaAI Backend API (Node.js Express + MongoDB)
+  # -------------------------------------------------------------
+  - type: web
+    name: nyaya-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    region: oregon
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        sync: false # Set to your free MongoDB Atlas URI
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ML_SERVICE_URL
+        fromService:
+          type: web
+          name: nyaya-ml-service
+          property: host
+      - key: FRONTEND_URL
+        sync: false # Set to your Vercel URL, e.g. https://nyaya-ai.vercel.app
+      - key: CORS_ORIGIN
+        sync: false # Set to your Vercel URL
+      - key: KANOON_API_TOKEN
+        sync: false
+      - key: KANOON_AUTO_SYNC_ON_STARTUP
+        value: "true"
+      - key: KANOON_AUTO_SYNC_LIMIT
+        value: "60"
+      - key: KANOON_AUTO_SYNC_PREDICT
+        value: "true"
+      - key: GEMINI_API_KEY
+        sync: false

@@ -53,7 +53,7 @@ async function runPrediction({ caseId, includeSimilar = true, includeRecommendat
   let similarError = null;
   if (includeSimilar) {
     try {
-      similarCases = await similarityService.findSimilar(caseDoc, { predictionId: prediction._id });
+      similarCases = await similarityService.findSimilar(caseDoc, { predictionId: prediction._id }, user);
     } catch (err) {
       // Prediction is still valid even if retrieval fails; surface the issue to the client.
       similarError = err.message;

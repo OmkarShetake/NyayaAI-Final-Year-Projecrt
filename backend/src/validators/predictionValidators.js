@@ -14,6 +14,8 @@ const createPredictionSchema = z.object({
 const similarBodySchema = z.object({
   topK: z.coerce.number().int().min(1).max(20).optional().default(5),
   includeHistorical: z.boolean().optional().default(true),
+  source: z.enum(['kanoon', 'all', 'database']).optional().default('kanoon'),
+  query: z.string().trim().max(300).optional(),
 }).strict();
 
 const listPredictionsQuery = z.object({

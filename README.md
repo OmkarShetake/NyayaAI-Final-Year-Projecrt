@@ -217,6 +217,14 @@ Nyaya-AI/
 
 ---
 
+## 🚀 Production Deployment
+
+For complete, step-by-step instructions on deploying NyayaAI to production for free (Vercel + Render + MongoDB Atlas) or on a cloud VPS (AWS EC2 / DigitalOcean with Docker Compose), check the full guide:
+
+👉 **[Read the Full Deployment Guide (DEPLOYMENT_GUIDE.md)](./DEPLOYMENT_GUIDE.md)**
+
+---
+
 ## 🐳 Docker Quickstart (Alternative)
 
 If you prefer running everything in Docker containers:

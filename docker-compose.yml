@@ -1,7 +1,6 @@
-# NyayaAI - local stack: MongoDB + ML service + API + frontend
+# NyayaAI - local/server stack: MongoDB + ML service + API + frontend
 #   cp .env.example .env   (set JWT_SECRET)
 #   docker compose up --build
-#   docker compose exec backend npm run seed:predict   # optional synthetic demo data
 services:
   mongo:
     image: mongo:7
@@ -50,6 +49,12 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      KANOON_API_TOKEN: ${KANOON_API_TOKEN:-}
+      KANOON_API_BASE_URL: ${KANOON_API_BASE_URL:-https://api.indiankanoon.org}
+      KANOON_DEFAULT_QUERY: ${KANOON_DEFAULT_QUERY:-civil suit doctypes:judgments}
+      KANOON_AUTO_SYNC_ON_STARTUP: ${KANOON_AUTO_SYNC_ON_STARTUP:-true}
+      KANOON_AUTO_SYNC_LIMIT: ${KANOON_AUTO_SYNC_LIMIT:-60}
+      KANOON_AUTO_SYNC_PREDICT: ${KANOON_AUTO_SYNC_PREDICT:-true}
       SAMPLE_CSV_PATH: /sample-data/sample_cases.csv
     volumes:
       - ./ml-service/data/sample:/sample-data:ro

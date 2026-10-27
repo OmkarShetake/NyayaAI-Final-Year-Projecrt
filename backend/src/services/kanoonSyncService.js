@@ -1,6 +1,6 @@
 /**
- * Indian Kanoon API Sync Service
- * ------------------------------
+ * Indian Kanoon API Sync & Similar Case Retrieval Service
+ * -------------------------------------------------------
  * Fetches real court judgments and case records from Indian Kanoon (api.indiankanoon.org)
  * and upserts them directly into MongoDB as real-world case entities.
  *
@@ -12,13 +12,13 @@
  * USAGE:
  *   - Manual sync CLI:   npm run sync:kanoon
  *   - Custom query CLI:  npm run sync:kanoon -- --query "cheque bounce" --limit 50 --predict
+ *   - Live Precedent Retrieval: searchSimilarJudgments(caseDoc, { topK, customQuery })
  */
 
 const env = require('../config/env');
 const axios = require('axios');
 const Case = require('../models/Case');
 const logger = require('../config/logger');
-const predictionService = require('./predictionService');
 
 const getToken = () => process.env.KANOON_API_TOKEN || env.KANOON_API_TOKEN || '';
 const getBaseUrl = () => process.env.KANOON_API_BASE_URL || env.KANOON_API_BASE_URL || 'https://api.indiankanoon.org';
@@ -42,7 +42,7 @@ function getClient() {
 
 function stripHtml(str) {
   if (!str) return '';
-  return str.replace(/<[^>]*>/g, '').trim();
+  return str.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function detectCourt(docsource, title) {
@@ -119,7 +119,6 @@ function extractLegalSections(headline) {
 function mapKanoonDocToCase(doc) {
   const cleanTitle = stripHtml(doc.title || 'Untitled Judicial Case');
   const cleanHeadline = stripHtml(doc.headline || cleanTitle);
-  const docDateStr = doc.publishdate || doc.docdate;
   const today = new Date();
 
   // Realistic case age in Indian courts: 1 to 4 years (~350 to 1100 days)
@@ -300,6 +299,7 @@ async function syncFromKanoon({
 
       if (toPredict.length > 0) {
         logger.info(`[Indian Kanoon] Running ML delay-risk predictions for ${toPredict.length} real cases...`);
+        const predictionService = require('./predictionService');
         for (const c of toPredict) {
           try {
             await predictionService.runPrediction({ caseId: c._id, includeSimilar: true, includeRecommendations: true }, adminUser);
@@ -327,18 +327,177 @@ async function syncFromKanoon({
   }
 }
 
+/**
+ * Searches Indian Kanoon API for judicial precedents similar to a given case.
+ * Returns formatted similar case objects with relevance scoring, headline snippets,
+ * citations, and direct Indian Kanoon document links.
+ */
+async function searchSimilarJudgments(caseDoc, { topK = 5, customQuery = null, adminUser = null } = {}) {
+  if (!getToken()) {
+    throw new Error('KANOON_API_TOKEN is not configured.');
+  }
+
+  // 1. Build search query from case properties or custom query
+  let queryStr = (customQuery || '').trim();
+  if (!queryStr) {
+    const parts = [];
+    if (caseDoc.legalSections && caseDoc.legalSections.length > 0) {
+      parts.push(caseDoc.legalSections.slice(0, 2).join(' '));
+    }
+    if (caseDoc.caseType) {
+      parts.push(caseDoc.caseType);
+    }
+    // Extract 2 key words from title or description if needed
+    if (parts.length === 0 && caseDoc.title) {
+      const cleanWords = caseDoc.title
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .split(/\s+/)
+        .filter((w) => w.length > 3 && !['versus', 'state', 'india', 'case', 'suit', 'court'].includes(w.toLowerCase()))
+        .slice(0, 3);
+      if (cleanWords.length) parts.push(cleanWords.join(' '));
+    }
+    queryStr = parts.join(' ').replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  if (!queryStr) {
+    queryStr = 'civil suit';
+  }
+  if (!queryStr.toLowerCase().includes('doctypes:judgments')) {
+    queryStr += ' doctypes:judgments';
+  }
+
+  logger.info(`[Indian Kanoon Similar] Querying Kanoon for case ${caseDoc.caseNumber || caseDoc._id}: "${queryStr}" (topK=${topK})`);
+
+  const client = getClient();
+  let docs = [];
+
+  try {
+    const payload = new URLSearchParams({
+      formInput: queryStr,
+      pagenum: '0',
+    }).toString();
+
+    const { data } = await client.post('/search/', payload, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+    docs = data?.docs || [];
+  } catch (err) {
+    logger.warn(`[Indian Kanoon Similar] Primary search failed for "${queryStr}": ${err.message}`);
+  }
+
+  // If specific query returned 0 documents, try a broader fallback query (e.g. caseType + court)
+  if (docs.length === 0) {
+    const fallbackQuery = `${caseDoc.caseType || 'civil'} ${caseDoc.court || 'court'} doctypes:judgments`.trim();
+    logger.info(`[Indian Kanoon Similar] Attempting broader fallback query: "${fallbackQuery}"`);
+    try {
+      const payload = new URLSearchParams({
+        formInput: fallbackQuery,
+        pagenum: '0',
+      }).toString();
+
+      const { data } = await client.post('/search/', payload, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      docs = data?.docs || [];
+    } catch (err) {
+      logger.warn(`[Indian Kanoon Similar] Fallback search failed: ${err.message}`);
+    }
+  }
+
+  if (docs.length === 0) {
+    logger.warn('[Indian Kanoon Similar] No matching court documents returned from Indian Kanoon.');
+    return [];
+  }
+
+  const results = [];
+  const targetSections = (caseDoc.legalSections || []).map((s) => s.toLowerCase());
+  const targetCourt = (caseDoc.court || '').toLowerCase();
+
+  for (let i = 0; i < Math.min(docs.length, topK); i++) {
+    const doc = docs[i];
+    const caseData = mapKanoonDocToCase(doc);
+
+    // Persist or find case in DB so user can also open it locally
+    let dbCase = await Case.findOne({ caseNumber: caseData.caseNumber });
+    if (!dbCase) {
+      if (adminUser) caseData.createdBy = adminUser._id;
+      dbCase = await Case.create(caseData);
+    }
+
+    // Compute similarity score based on Kanoon search relevance rank and attribute matches
+    let score = Math.max(0.68, 0.95 - i * 0.04);
+    const docText = `${doc.title || ''} ${doc.headline || ''} ${doc.docsource || ''}`.toLowerCase();
+
+    // Bonus for matching sections
+    const matchedSections = targetSections.filter((s) => docText.includes(s));
+    if (matchedSections.length > 0) score += 0.03;
+    // Bonus for matching court
+    if (targetCourt && docText.includes(targetCourt)) score += 0.02;
+    score = Math.min(0.98, Math.max(0.60, Number(score.toFixed(3))));
+
+    // Build explanatory string
+    const matchReasons = [];
+    if (matchedSections.length > 0) {
+      matchReasons.push(`Section: ${matchedSections.join(', ')}`);
+    }
+    if (caseData.caseType) {
+      matchReasons.push(`Type: ${caseData.caseType}`);
+    }
+    if (doc.docsource) {
+      matchReasons.push(`Court: ${doc.docsource}`);
+    }
+    const explanation = matchReasons.length
+      ? `Indian Kanoon precedent matching ${matchReasons.join(' · ')}`
+      : `Indian Kanoon precedent ranked for "${queryStr.replace(' doctypes:judgments', '')}"`;
+
+    results.push({
+      similarCaseId: dbCase._id,
+      referenceId: `kanoon-${doc.tid}`,
+      source: 'kanoon',
+      caseNumber: caseData.caseNumber,
+      title: stripHtml(doc.title || caseData.title),
+      caseType: caseData.caseType,
+      court: caseData.court,
+      state: caseData.state,
+      currentStage: caseData.currentStage,
+      status: caseData.status,
+      riskLevel: caseData.riskLevel || 'MEDIUM',
+      delayDays: caseData.predictedDelayDays || 365,
+      similarityScore: score,
+      explanation,
+      method: 'Indian Kanoon API (Relevance & Precedent Match)',
+      docUrl: `https://indiankanoon.org/doc/${doc.tid}/`,
+      citation: doc.citation || null,
+      headline: stripHtml(doc.headline || ''),
+      kanoonTid: doc.tid,
+    });
+  }
+
+  logger.info(`[Indian Kanoon Similar] Found and mapped ${results.length} Kanoon precedents for case.`);
+  return results;
+}
+
+function isConfigured() {
+  return Boolean(getToken() && getToken().trim().length > 5);
+}
+
 function getSyncStatus() {
   return {
     isSyncing,
     lastSyncAt,
     lastResult,
-    isConfigured: Boolean(getToken() && getToken().trim().length > 5),
+    isConfigured: isConfigured(),
   };
 }
 
 module.exports = {
   syncFromKanoon,
   mapKanoonDocToCase,
-  isConfigured: () => Boolean(getToken() && getToken().trim().length > 5),
+  searchSimilarJudgments,
+  isConfigured,
   getSyncStatus,
 };
