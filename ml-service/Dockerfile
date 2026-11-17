@@ -4,8 +4,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 && rm 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-# Models are pre-trained and committed to the repo (models/*.joblib).
-# Training is skipped at build time for faster deploys.
-# To retrain: run `python -m training.train` locally, commit the new model files, then redeploy.
+# Train models at build time so artifacts always match the installed library versions.
+# Pre-trained .joblib files in the repo may be incompatible with newer sklearn/xgboost.
+RUN python -m training.train
 EXPOSE 8000
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-${ML_SERVICE_PORT:-8000}}"]
