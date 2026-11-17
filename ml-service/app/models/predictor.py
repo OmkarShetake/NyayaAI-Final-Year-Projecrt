@@ -47,6 +47,9 @@ class DelayRiskPredictor:
                 self._load_artifacts()
 
     def _load_artifacts(self) -> None:
+        logger.info("Loading model from: %s", settings.MODEL_PATH)
+        logger.info("Loading preprocessor from: %s", settings.PREPROCESSOR_PATH)
+        logger.info("Loading regressor from: %s", settings.REGRESSOR_PATH)
         bundle = joblib.load(settings.MODEL_PATH)
         self.model = bundle["model"]
         self.label_encoder = bundle["label_encoder"]

@@ -21,12 +21,13 @@ logger = logging.getLogger("nyaya-ml")
 async def lifespan(_: FastAPI):
     try:
         predictor.load()
-    except Exception:  # noqa: BLE001
-        logger.exception("Model failed to load; /predict will return 503 until fixed")
+        logger.info("Model loaded successfully: %s (%s)", predictor.model_version, predictor.model_type)
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Model failed to load (%s); /predict will return 503 until fixed", str(e))
     try:
         similarity_service.load()
-    except Exception:  # noqa: BLE001
-        logger.exception("Similarity service failed to load")
+    except Exception as e:  # noqa: BLE001
+        logger.exception("Similarity service failed to load (%s)", str(e))
     yield
 
 
