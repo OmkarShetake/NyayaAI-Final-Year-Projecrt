@@ -11,7 +11,7 @@ const schema = z.object({
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   ML_SERVICE_URL: z.string().url().default('http://localhost:8000'),
-  ML_SERVICE_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  ML_SERVICE_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   FRONTEND_URL: z.string().default('http://localhost:5173'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   GEMINI_API_KEY: z.string().optional().default(''),

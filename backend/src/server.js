@@ -19,6 +19,27 @@ async function start() {
     logger.info(`NyayaAI API listening on http://localhost:${env.PORT}/api (${env.NODE_ENV})`);
     logger.info(`ML service: ${env.ML_SERVICE_URL} | Gemini: ${env.geminiEnabled ? 'enabled' : 'disabled (template fallback)'}`);
 
+    // Keep the ML service awake on Render free tier by pinging it every 10 minutes.
+    // Free tier sleeps after 15 min inactivity; this prevents cold-start delays on predictions.
+    const ML_PING_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+    const pingMlService = async () => {
+      try {
+        const mlService = require('./services/mlService');
+        const result = await mlService.health();
+        if (result.reachable) {
+          logger.info(`[KeepAlive] ML service ping OK (modelLoaded=${result.modelLoaded})`);
+        } else {
+          logger.warn(`[KeepAlive] ML service ping failed: ${result.error}`);
+        }
+      } catch (e) {
+        logger.warn(`[KeepAlive] ML service ping error: ${e.message}`);
+      }
+    };
+    // First ping after 30s (let everything start), then every 10 min
+    setTimeout(() => {
+      pingMlService();
+      setInterval(pingMlService, ML_PING_INTERVAL_MS);
+    }, 30000);
     // Auto-fetch real-world court cases from Indian Kanoon on startup (non-blocking)
     if (env.KANOON_AUTO_SYNC_ON_STARTUP) {
       if (kanoonSyncService.isConfigured()) {
