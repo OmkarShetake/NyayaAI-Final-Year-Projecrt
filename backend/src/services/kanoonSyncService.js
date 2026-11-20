@@ -302,10 +302,19 @@ async function syncFromKanoon({
         const predictionService = require('./predictionService');
         for (const c of toPredict) {
           try {
-            await predictionService.runPrediction({ caseId: c._id, includeSimilar: true, includeRecommendations: true }, adminUser);
+            await predictionService.runPrediction({ caseId: c._id, includeSimilar: false, includeRecommendations: false }, adminUser);
             predictedCount += 1;
+            // Throttle: wait 2s between predictions to avoid overwhelming the ML service
+            if (predictedCount % 5 === 0) {
+              await new Promise((r) => setTimeout(r, 2000));
+            }
           } catch (predErr) {
             logger.warn(`[Indian Kanoon] Prediction failed for ${c.caseNumber}: ${predErr.message}`);
+            // If ML service is down (503/429), stop trying immediately
+            if (predErr.statusCode === 503 || predErr.statusCode === 429) {
+              logger.warn('[Indian Kanoon] ML service unavailable — stopping prediction batch.');
+              break;
+            }
           }
         }
         logger.info(`[Indian Kanoon] Completed predictions for ${predictedCount}/${toPredict.length} real cases.`);

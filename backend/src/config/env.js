@@ -22,7 +22,7 @@ const schema = z.object({
   KANOON_DEFAULT_QUERY: z.string().default('civil suit'),
   KANOON_AUTO_SYNC_ON_STARTUP: z.coerce.boolean().default(true),
   KANOON_AUTO_SYNC_LIMIT: z.coerce.number().int().positive().default(60),
-  KANOON_AUTO_SYNC_PREDICT: z.coerce.boolean().default(true),
+  KANOON_AUTO_SYNC_PREDICT: z.coerce.boolean().default(false),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(500),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(30),
